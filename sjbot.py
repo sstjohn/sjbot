@@ -2,8 +2,49 @@
 
 import sys
 import random
+import re
 
 stripper = lambda x: x.translate(None, " ~`!@#$%^&*()_+-=[]\{}|;':,./<>?\"").lower()
+
+def cleanup(s):
+	ldq = len(re.findall('"[a-zA-Z]', s))
+	rdq = len(re.findall('[a-zA-Z0-9.?,!]"',s))
+
+	if ldq > rdq and s[-1] != '"':
+		s = s + '"'
+		rdq += 1
+	
+	if rdq > ldq and s[0] != '"':
+		s = '"' + s
+		ldq += 1
+
+	if ldq != rdq:
+		return None
+
+	lp = len(re.findall("\([a-zA-Z]", s))
+	rp = len(re.findall("[a-zA-Z0-9.,?,]\)",s))
+
+	if lp > rp and s[-1] != ")":
+		s = s + ")"
+		rp += 1
+
+	if rp > lp and s[0] != "(":
+		s = "(" + s
+		lp += 1
+	
+	if lp != rp or len(s) < 10:
+		return None
+
+	while True:
+		p = re.search("\. [a-z]",s)
+		if p is None:
+			break
+		s = s[0:p.start()] + "," + s[p.start() + 1:]	
+
+	if s[0].isalpha() and s[0].islower():
+		s = s[0].upper() + s[1:]
+
+	return s
 
 if __name__ == "__main__":
 	t = {(None,None): []}
@@ -18,8 +59,8 @@ if __name__ == "__main__":
 			buf = ""
 			last = None
 			cur = None
-			words = [w.strip() for w in words if len(w) > 0 and w[0] != "@" and (w[0] != "[" or w[-1] != "]") and w[0:4] != "http"]
-			if len(words) < 3:
+			words = [w for w in words if len(stripper(w)) > 0]
+			if len(words) < 2:
 				continue
 			hashes.add(stripper("".join(words)))
 			words.append(None)
@@ -27,6 +68,9 @@ if __name__ == "__main__":
 				try: t[(last,cur)] += [n]
 				except: t[(last,cur)] = [n]
 				
+				try: t[(None,cur)] += [n]
+				except: t[(None,cur)] = [n]
+
 				last = cur
 				
 				try: cur = stripper(n)
@@ -41,7 +85,8 @@ if __name__ == "__main__":
 			n = random.choice(t[(last, stripper(cur))])
 			last = stripper(cur)
 			cur = n
-		if stripper(gen) in hashes:
+		o = cleanup(gen.strip())
+		if o is None or stripper(o) in hashes:
 			continue
-		print gen
+		print o
 		i += 1
