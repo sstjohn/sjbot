@@ -6,7 +6,8 @@ import re
 
 stripper = lambda x: x.translate(None, " ~`!@#$%^&*()_+-=[]\{}|;':,./<>?\"").lower()
 
-def cleanup(s):
+def cleanup(old):
+	s = old
 	ldq = len(re.findall('"[a-zA-Z]', s))
 	rdq = len(re.findall('[a-zA-Z0-9.?,!]"',s))
 
@@ -36,13 +37,26 @@ def cleanup(s):
 		return None
 
 	while True:
-		p = re.search("\. [a-z]",s)
+		p = re.search("[\.?!] [a-z]",s)
 		if p is None:
 			break
 		s = s[0:p.start()] + "," + s[p.start() + 1:]	
 
 	if s[0].isalpha() and s[0].islower():
 		s = s[0].upper() + s[1:]
+
+	last = len(s) - 1
+	while last > 0 and (s[last] == '"' or s[last] == "'" or s[last] == ")"):
+		last -= 1
+
+	if 0 == last:
+		return None
+
+	if s[last] == ",":
+		s = s[:last] + "." + s[last+1:]
+
+	if s[last] != "." and s[last] != "!" and s[last] != "?":
+		s = s[:last+1] + random.choice([".","!","?"]) + s[last+1:]
 
 	return s
 
@@ -86,7 +100,8 @@ if __name__ == "__main__":
 			last = stripper(cur)
 			cur = n
 		o = cleanup(gen.strip())
-		if o is None or stripper(o) in hashes:
+		if o is None or stripper(o) in hashes or len(o) < 10 or len(o) > 140:
 			continue
 		print o
+		print
 		i += 1
