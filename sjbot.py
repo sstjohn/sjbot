@@ -42,8 +42,15 @@ def cleanup(old):
 			break
 		s = s[0:p.start()] + "," + s[p.start() + 1:]	
 
-	if s[0].isalpha() and s[0].islower():
-		s = s[0].upper() + s[1:]
+	first = 0
+	while not s[first].isalpha() and first < len(s):
+		first += 1
+
+	if first == len(s):
+		return None
+
+	if s[first].islower():
+		s = s[:first] + s[first].upper() + s[first+1:]
 
 	last = len(s) - 1
 	while last > 0 and (s[last] == '"' or s[last] == "'" or s[last] == ")"):
