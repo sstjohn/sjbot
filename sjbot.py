@@ -3,6 +3,7 @@
 import sys
 import random
 import re
+import csv
 
 stripper = lambda x: x.translate(None, " ~`!@#$%^&*()_+-=[]\{}|;':,./<>?\"").lower()
 
@@ -26,47 +27,24 @@ def match(s, l, r):
 	return s
 
 def cleanup(old):
-	s = old
-	s = match(s, '"', '"')
+	s = match(old, '"', '"')
 	s = match(s, "'", "'")
 	s = match(s, '\(', '\)')
 	if None is s:
 		return None
 
-	while True:
-		p = re.search("[\.?!] [a-z]",s)
-		if p is None:
-			break
-		if s[p.start()] == ".":
-			s = s[:p.start()] + s[p.start() + 1:]
-		else:
-			s = s[0:p.start() + 2] + s[p.start() + 2].upper() + s[p.start()+3:]	
+	words = s.split()
+	s = ""
+	while len(words) > 0 and len(words[0]) > 0 and words[0][0] == "@":
+		words.pop(0)
 
-	first = 0
-	while first < len(s) and not s[first].isalpha():
-		first += 1
+	while len(words) > 0:
+		w = words.pop(0)
+		if w[0] == "@":
+			return None
+		s += w + " "	
 
-	if first == len(s):
-		return None
-
-	if s[first].islower():
-		s = s[:first] + s[first].upper() + s[first+1:]
-
-	last = len(s) - 1
-	while last > 0 and (s[last] == '"' or s[last] == "'" or s[last] == ")"):
-		if s[last] == ":":
-			last = 0
-			break
-		last -= 1
-
-	if 0 != last:
-		if s[last] == ",":
-			s = s[:last] + "." + s[last+1:]
-
-		if s[last] != "." and s[last] != "!" and s[last] != "?":
-			s = s[:last+1] + random.choice([".","!","?"]) + s[last+1:]
-
-	return s
+	return s.strip()
 
 def build_htable(hashtags):
 	xht = {}
@@ -89,21 +67,54 @@ def get_hashtag(sentence, xht):
 		return None
 	return random.choice(choices)
 
+def tweet(t, xht):
+	o = None
+	while o is None:
+		gen = ""
+		llast = None
+		last = None
+		cur = random.choice(t[(None,None,None)])
+		while cur is not None:
+			gen += "%s " % cur
+			choices = []
+			try: 
+				choices.extend(t[(llast, last, stripper(cur))])
+			except: pass
+			if len(choices) < 4:
+				try:
+					choices.extend(t[(None, last, stripper(cur))])
+				except: pass
+			if len(choices) < 1:
+				gen = ""
+				break
+
+			n = random.choice(choices)
+			llast = last
+			last = stripper(cur)
+			cur = n
+		o = cleanup(gen.strip())
+		if (o is None or stripper(o) in hashes or len(o) < 10 or
+				len(o) > 140 or o.count("@") > 0 or o.count(" ") < 1):
+			o = None
+		elif o.count("#") == 0 and random.random() > 0.5:
+			newht = get_hashtag(o, xht)
+			if newht is not None:
+				o += " " + newht
+	return o
+
 if __name__ == "__main__":
 	t = {(None,None): []}
 	hashes = set()
 	hashtags = {}
-	with open("input.txt","r") as f:
-		buf = ""
-		for inp in f.readlines():
-			buf += " %s" % inp.strip()
-			if not (buf[-1] == "." or buf[-1] == "!" or buf[-1] == "?" or buf[-1] == '"' or buf[-1] == "'" or buf[-1] == ")"):
+	with open("input.csv","r") as f:
+		tweetreader = csv.reader(f)
+		for inp in tweetreader:
+			words = inp[2].split()
+			if words[0] == "RT":
 				continue
-			words = buf.split(" ")
-			buf = ""
+			llast = None
 			last = None
 			cur = None
-			words = [w for w in words if len(stripper(w)) > 0 and w[0] != "@"]
 			hts = [w for w in words if w[0] == "#"]
 			for ht in hts:
 				try:
@@ -115,12 +126,13 @@ if __name__ == "__main__":
 			hashes.add(stripper("".join(words)))
 			words.append(None)
 			for n in words:
-				try: t[(last,cur)] += [n]
-				except: t[(last,cur)] = [n]
+				try: t[(llast,last,cur)] += [n]
+				except: t[(llast,last,cur)] = [n]
 
-				try: t[(None,cur)] += [n]
-				except: t[(None,cur)] = [n]
-				
+				try: t[(None,last,cur)] += [n]
+				except: t[(None,last,cur)] = [n]
+		
+				llast = last
 				last = cur
 				
 				try: cur = stripper(n)
@@ -130,34 +142,5 @@ if __name__ == "__main__":
 	
 	i = 0
 	while i < 200:
-		gen = ""
-		last = None
-		cur = random.choice(t[(None,None)])
-		while cur is not None:
-			gen += "%s " % cur
-			choices = []
-			try: 
-				choices.extend(t[(last, stripper(cur))])
-			except: pass
-			if len(choices) < 2:
-				try:
-					choices.extend(t[(None, stripper(cur))])
-				except: pass
-
-			if len(choices) < 2:
-				gen = ""
-				break
-
-			n = random.choice(choices)
-			last = stripper(cur)
-			cur = n
-		o = cleanup(gen.strip())
-		if o is None or stripper(o) in hashes or len(o) < 10 or len(o) > 140:
-			continue
-		if o.count("#") == 0:
-			newht = get_hashtag(o, xht)
-			if newht is not None:
-				o += " " + newht
-		print o
-		print
+		print tweet(t, xht)
 		i += 1
